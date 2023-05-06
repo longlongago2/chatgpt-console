@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import * as dotenv from 'dotenv';
 
-const root = path.resolve(path.dirname(''));
+const rootDir = path.resolve(process.argv[1], '..');
 
 export function getSystemDownloadFolderPath() {
   const homeDir = os.homedir();
@@ -30,8 +30,9 @@ export function getAddress() {
 
 export function dotenvConfig(dotenvFiles = []) {
   dotenvFiles.forEach((dotenvFile) => {
-    if (fs.existsSync(path.join(root, dotenvFile))) {
-      dotenv.config({ path: dotenvFile });
+    const file = path.join(rootDir, dotenvFile);
+    if (fs.existsSync(file)) {
+      dotenv.config({ path: file });
     }
   });
 }

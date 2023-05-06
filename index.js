@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import ora from 'ora';
 import chalk from 'chalk';
 import path from 'node:path';
@@ -10,13 +11,15 @@ import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from '
 import { getSystemDownloadFolderPath, getAddress, dotenvConfig, isJSON, isObject } from './utils/index.js';
 import request from './utils/request.js';
 
-// 项目根目录
-const root = path.resolve(path.dirname(''));
+// 项目根目录: process.cwd() 获取的是执行命令的目录，而不是文件目录
+// 如果安装命令行之后，路径获取的是当前执行命令行的目录，因此不能使用 process.cwd()
+const rootDir = path.resolve(process.argv[1], '..');
 
 // 加载环境变量
-const dotenvFiles = ['.env.local', '.env'];
-
-dotenvConfig(dotenvFiles);
+if (!process.env.OPENAI_API_KEY) {
+  const dotenvFiles = ['.env.local', '.env'];
+  dotenvConfig(dotenvFiles);
+}
 
 // 对话关键词
 const exitKeywords = ['退出', '退下', 'exit', 'quit', 'bye'];
@@ -122,48 +125,57 @@ function chatCompletionGenerator(messages) {
  * @description 创建接口服务
  * @export
  * @param {string} port
- * @return {Promise<import('http').Server>}
+ * @return {Promise<{data: import('http').Server, err: Error}>}
  */
 export function serverGenerator(port) {
-  return new Promise((resolve) => {
-    const app = express();
-    app.use(express.static(path.join(root, 'public')));
-    app.use(favicon(path.join(root, 'public', 'favicon.ico')));
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({ extended: true }));
-    app.all('/proxy/*', async (req, res) => {
-      try {
-        const { method, params } = req;
-        const url = params['0'];
-        const response = await request({
-          url: `https://${url}`,
-          method,
-          params: req.query,
-          data: req.body,
-          headers: req.headers,
-        });
-        res.setHeader('Content-Type', 'application/json');
-        res.send(response.data);
-      } catch (error) {
-        console.log(chalk.bgRed('\n\n服务器错误\n'));
-        console.error(error);
-        console.log('\n');
-        res.setHeader('Content-Type', 'text/html');
-        if (error.response) {
-          const { status, data } = error.response;
-          if (isJSON(data) || isObject(data)) {
-            res.setHeader('Content-Type', 'application/json');
+  const serverPromise = new Promise((resolve, reject) => {
+    try {
+      const app = express();
+      app.use(express.static(path.join(rootDir, 'public')));
+      app.use(favicon(path.join(rootDir, 'public', 'favicon.ico')));
+      app.use(bodyParser.json());
+      app.use(bodyParser.urlencoded({ extended: true }));
+      app.all('/proxy/*', async (req, res) => {
+        try {
+          const { method, params } = req;
+          const url = params['0'];
+          const response = await request({
+            url: `https://${url}`,
+            method,
+            params: req.query,
+            data: req.body,
+            headers: req.headers,
+          });
+          res.setHeader('Content-Type', 'application/json');
+          res.send(response.data);
+        } catch (error) {
+          console.log(chalk.bgRed('\n\n服务器错误\n'));
+          console.error(error);
+          console.log('\n');
+          res.setHeader('Content-Type', 'text/html');
+          if (error.response) {
+            const { status, data } = error.response;
+            if (isJSON(data) || isObject(data)) {
+              res.setHeader('Content-Type', 'application/json');
+            }
+            res.status(status).send(data);
+            return;
           }
-          res.status(status).send(data);
-          return;
+          res.status(500).send(`Internal Server Error: ${error.message}`);
         }
-        res.status(500).send(`Internal Server Error: ${error.message}`);
-      }
-    });
-    const expressServer = app.listen(port, () => {
-      resolve(expressServer);
-    });
+      });
+      const expressServer = app.listen(port, () => {
+        resolve(expressServer);
+      });
+      expressServer.on('error', (err) => {
+        reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
   });
+
+  return serverPromise.then((expressServer) => ({ data: expressServer })).catch((err) => ({ err }));
 }
 
 /**
@@ -223,7 +235,14 @@ async function chat() {
   if (serveKeywords.includes(answer)) {
     if (!server) {
       const inputPort = (await rlp.question(chalk.greenBright('\n请输入服务端口号(3000)：'))) || 3000;
-      server = await serverGenerator(inputPort);
+      const res = await serverGenerator(inputPort);
+      if (res.err) {
+        console.log(chalk.bgRed('\n ChatGPT 代理服务启动失败 \n'));
+        console.log(`${res.err.message}\n`);
+        chat();
+        return;
+      }
+      server = res.data;
     }
     const ip = getAddress()[0];
     const { port } = server.address();
