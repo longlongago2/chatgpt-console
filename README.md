@@ -6,7 +6,7 @@
 
 ### 1. Configure environment variables
 
-```
+```yml
 # Create .env.local file
 
 # Your chatGPT API key
@@ -26,6 +26,18 @@ npm install
 
 ```bash
 npm start
+```
+
+## Proxy
+
+**If you are in a country with a Great Firewall, such as China, please use a VPN to assist you and configure it in the .env file.**
+
+```yml
+# .env file
+# Take Clash as an example, note the port of Clash
+
+HTTP_PROXY = http://127.0.0.1:7890
+HTTPS_PROXY = http://127.0.0.1:7890
 ```
 
 ## Screenshot
