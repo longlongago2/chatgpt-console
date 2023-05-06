@@ -243,13 +243,13 @@ async function chat() {
     if (server) {
       server.close((err) => {
         if (err) process.exit(1);
-        console.log(chalk.bgRed('\n ChatGPT 服务已经关闭 \n'));
+        console.log(chalk.bgRed('\n ChatGPT 代理服务已经关闭 \n'));
         server = null;
         chat();
       });
       return;
     }
-    console.log(chalk.bgRed('\n ChatGPT 没有启动服务 \n'));
+    console.log(chalk.bgRed('\n ChatGPT 没有启动代理服务 \n'));
     chat();
     return;
   }
