@@ -28,6 +28,16 @@ npm install
 npm start
 ```
 
+### 4. Global install
+
+*You can use command `chatgpt` by installing it globally*
+
+```bash
+npm link
+
+chatgpt
+```
+
 ## Proxy
 
 **If you are in a country with a Great Firewall, such as China, please use a VPN to assist you and configure it in the .env file.**
