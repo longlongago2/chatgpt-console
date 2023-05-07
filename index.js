@@ -18,9 +18,11 @@ import {
   isObject,
   getPrefix,
   extractCommandLine,
+  isJSONFile,
 } from './utils/index.js';
 import {
   rootDir,
+  packageInfo,
   exitKeywords,
   saveKeywords,
   cleanKeywords,
@@ -31,9 +33,7 @@ import {
   chatModeKeywords,
   cliModeKeywords,
   commandsOutput,
-  cliModeSystem,
-  interviewerModeKeywords,
-  interviewerModeSystem,
+  cliDefinition,
 } from './utils/constant.js';
 import request from './utils/request.js';
 
@@ -44,7 +44,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 // 初始化模式
-let mode = 'chat mode'; // chat mode | cli mode | interviewer mode
+let mode = 'chat mode'; // chat mode | cli mode
 
 // 初始化模式提示前缀
 let prefix = getPrefix(mode);
@@ -53,10 +53,7 @@ let prefix = getPrefix(mode);
 let chatLog = [];
 
 // 初始化命令行模式历史记录
-let cliLog = [cliModeSystem];
-
-// 初始化面试官模式历史记录
-let interviewerLog = [interviewerModeSystem];
+let cliLog = [cliDefinition];
 
 // 初始化接口服务
 let server = null;
@@ -105,7 +102,7 @@ function imageGenerator(imgDesc) {
 
 /**
  * @description 对话生成函数
- * @param {'cli mode' | 'chat mode' | 'interviewer mode'} _mode
+ * @param {'cli mode' | 'chat mode'} _mode
  * @param {any[]} messages
  * @return {Promise<{data: any[], err: Error}>}
  */
@@ -209,6 +206,7 @@ export function commandGenerator(command) {
           reject(new Error(stderr));
           return;
         }
+        // 防止输出中文乱码
         const _stdout = iconv.decode(Buffer.from(stdout, 'binary'), 'gbk');
         resolve(_stdout);
       });
@@ -296,20 +294,6 @@ async function chat() {
     return;
   }
 
-  if (interviewerModeKeywords.includes(answer)) {
-    if (mode === 'interviewer mode') {
-      console.log(chalk.bgRed('\n ChatGPT 已经处于面试官模式 \n'));
-      chat();
-      return;
-    }
-    console.log(chalk.bgGreen('\n ChatGPT 已切换到面试官模式 \n'));
-    mode = 'interviewer mode';
-    prefix = getPrefix(mode);
-    // TODO: 读取本地简历，并输入到chatGPT
-    chat();
-    return;
-  }
-
   if (exitKeywords.includes(answer)) {
     if (server) {
       server.close((err) => {
@@ -328,8 +312,7 @@ async function chat() {
   if (cleanKeywords.includes(answer)) {
     // 设置初始状态
     chatLog = [];
-    cliLog = [cliModeSystem];
-    interviewerLog = [interviewerModeSystem];
+    cliLog = [cliDefinition];
     // 清屏并提示
     console.clear();
     console.log(chalk.bgGreen('\n ChatGPT 已经清空会话历史 \n'));
@@ -347,33 +330,23 @@ async function chat() {
     const cliFilePath = path.join(downloadDir, 'cli-log.json');
     await fsPromise.writeFile(cliFilePath, cliLogString, { encoding: 'utf-8' });
     console.log(`${chalk.bgGreen('\n ChatGPT 已保存命令行历史：')} => ${cliFilePath}\n`);
-    const interviewerLogString = JSON.stringify(interviewerLog);
-    const interviewerFilePath = path.join(downloadDir, 'interviewer-log.json');
-    await fsPromise.writeFile(interviewerFilePath, interviewerLogString, { encoding: 'utf-8' });
-    console.log(`${chalk.bgGreen('\n ChatGPT 已保存面试官历史：')} => ${interviewerFilePath}\n`);
     chat();
     return;
   }
 
   if (readKeywords.includes(answer)) {
     const inputPath = await rlp.question(chalk.greenBright('\n请输入读取文件路径(*.json)：'));
-    if (fs.existsSync(inputPath)) {
+    if (fs.existsSync(inputPath) && isJSONFile(inputPath)) {
       // 读取会话历史记录文件
       const json = await fsPromise.readFile(inputPath, { encoding: 'utf-8' });
       const readLog = JSON.parse(json);
-      const { role, content } = cliModeSystem;
-      const { role: ri, content: ci } = interviewerModeSystem;
+      const { role, content } = cliDefinition;
       const isCliMode = readLog.filter((l) => l.content === content && l.role === role).length > 0;
-      const isInterviewerMode = readLog.filter((l) => l.content === ci && l.role === ri).length > 0;
       // 判断会话mode
       if (isCliMode) {
         mode = 'cli mode';
         prefix = getPrefix(mode);
         cliLog = cliLog.concat(readLog);
-      } else if (isInterviewerMode) {
-        mode = 'interviewer mode';
-        prefix = getPrefix(mode);
-        interviewerLog = interviewerLog.concat(readLog);
       } else {
         mode = 'chat mode';
         prefix = getPrefix(mode);
@@ -381,7 +354,7 @@ async function chat() {
       }
       console.log(chalk.bgGreen(`\n ChatGPT 已读取${chalk.bgGray(prefix)}历史\n`));
     } else {
-      console.log(chalk.bgRed('\n ChatGPT 读取文件不存在 \n'));
+      console.log(chalk.bgRed('\n ChatGPT 读取的文件不存在或格式不正确 \n'));
     }
     chat();
     return;
@@ -466,9 +439,6 @@ async function chat() {
   } else if (mode === 'chat mode') {
     chatLog.push(input);
     messages = chatLog;
-  } else if (mode === 'interviewer mode') {
-    interviewerLog.push(input);
-    messages = interviewerLog;
   }
 
   const { data, err } = await chatCompletionGenerator(mode, messages);
@@ -485,7 +455,7 @@ async function chat() {
         content,
       };
       if (mode === 'cli mode') {
-        // 万一答案里不止有命令行，还有其他内容，需要提取命令行
+        // 万一答案里不止有命令行，还有其他内容，需要提取命令行，纠正gpt的回答
         const command = extractCommandLine(content) || 'UNKNOWN';
         cliLog.push({
           ...output,
@@ -493,8 +463,6 @@ async function chat() {
         });
       } else if (mode === 'chat mode') {
         chatLog.push(output);
-      } else if (mode === 'interviewer mode') {
-        interviewerLog.push(output);
       }
     });
   } else {
@@ -514,7 +482,9 @@ async function chat() {
 }
 
 console.log(
-  `\n🤖 你好，我是 ${chalk.bgMagenta('ChatGPT')}，你可以和我聊天。${commandsOutput}⚡ 马上开启聊天吧！\n`,
+  `\n🤖 你好，我是 ${chalk.bgRed(
+    ` ChatGPT terminal v${packageInfo.version} `,
+  )}。${commandsOutput}⚡ 马上开启聊天吧！\n`,
 );
 
 // 执行控制台对话

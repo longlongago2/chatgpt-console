@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import * as dotenv from 'dotenv';
 import chalk from 'chalk';
-import { rootDir, chatModeKeywords, cliModeKeywords, interviewerModeKeywords } from './constant.js';
+import { rootDir, chatModeKeywords, cliModeKeywords } from './constant.js';
 
 export function getSystemDownloadFolderPath() {
   const homeDir = os.homedir();
@@ -52,6 +52,15 @@ export function isJSON(str) {
   return false;
 }
 
+export function isJSONFile(filePath) {
+  try {
+    JSON.parse(fs.readFileSync(filePath));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export function isObject(obj) {
   return Object.prototype.toString.call(obj).indexOf('Object') > -1;
 }
@@ -62,8 +71,6 @@ export function getPrefix(mode) {
     prefix = chalk.greenBright(`[${chatModeKeywords[0]}]`);
   } else if (mode === 'cli mode') {
     prefix = chalk.greenBright(`[${cliModeKeywords[0]}]`);
-  } else if (mode === 'interviewer mode') {
-    prefix = chalk.greenBright(`[${interviewerModeKeywords[0]}]`);
   }
   return prefix;
 }

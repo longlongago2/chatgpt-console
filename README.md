@@ -34,6 +34,7 @@ npm start
 
 ```bash
 npm link
+
 chatgpt
 ```
 
