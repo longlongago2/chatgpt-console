@@ -7,6 +7,7 @@ import favicon from 'serve-favicon';
 import bodyParser from 'body-parser';
 import fs, { promises as fsPromise } from 'node:fs';
 import { promises as readlinePromise } from 'node:readline';
+import { exec } from 'node:child_process';
 import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from 'openai';
 import {
   getSystemDownloadFolderPath,
@@ -182,6 +183,77 @@ export function serverGenerator(port) {
   });
 
   return serverPromise.then((expressServer) => ({ data: expressServer })).catch((err) => ({ err }));
+}
+
+/**
+ * @description 命令行生成函数
+ * @export
+ * @param {string} command
+ * @return {Promise<{data: string, err: Error}>}
+ */
+export function commandGenerator(command) {
+  const commandPromise = new Promise((resolve, reject) => {
+    try {
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (stderr) {
+          reject(new Error(stderr));
+          return;
+        }
+        resolve(stdout);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+
+  return commandPromise.then((stdout) => ({ data: stdout })).catch((err) => ({ err }));
+}
+
+/**
+ * @description 执行命令函数
+ * @export
+ * @param {string} command
+ * @return {*}
+ */
+export async function execCommand(command) {
+  const answer = await rlp.question(` -- ${chalk.red('是否执行？')} (Y/N/E)：`);
+  const v = answer.trim().toLowerCase();
+  if (v === 'y') {
+    const { data, err } = await commandGenerator(command);
+    if (err) {
+      console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
+      return;
+    }
+    console.log(chalk.bgGreen('\n命令执行成功\n'));
+    console.log(data);
+    return;
+  }
+  if (v === 'n') {
+    // 不执行命令
+    console.log(chalk.bgGray('\n命令已取消\n'));
+    return;
+  }
+  if (v === 'e') {
+    // 编辑命令
+    setTimeout(() => {
+      rlp.write(command);
+    }, 0);
+    const newCommand = await rlp.question(`\n -- ${chalk.blue('编辑命令')}：`);
+    const { data, err } = await commandGenerator(newCommand);
+    if (err) {
+      console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
+      return;
+    }
+    console.log(chalk.bgGreen('\n命令执行成功\n'));
+    console.log(data);
+    return;
+  }
+
+  console.log(chalk.bgRed('\n命令未执行：非法字符\n'));
 }
 
 /**
@@ -367,6 +439,7 @@ async function chat() {
 
   spinner.stop();
 
+  // 输出回答并记录历史
   if (data && Array.isArray(data)) {
     data.forEach((choice) => {
       const { role, content } = choice.message;
@@ -388,6 +461,15 @@ async function chat() {
     });
   } else {
     console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
+  }
+
+  // 命令行模式下，执行命令行
+  if (mode === 'cli mode') {
+    const command = cliLog[cliLog.length - 1].content;
+    if (command !== 'UNKNOWN') {
+      // 执行命令行
+      await execCommand(command.replace('>', ''));
+    }
   }
 
   chat();
