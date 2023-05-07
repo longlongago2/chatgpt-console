@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import * as dotenv from 'dotenv';
-
-const rootDir = path.resolve(process.argv[1], '..');
+import chalk from 'chalk';
+import { rootDir, chatModeKeywords, cliModeKeywords } from './constant.js';
 
 export function getSystemDownloadFolderPath() {
   const homeDir = os.homedir();
@@ -54,4 +54,29 @@ export function isJSON(str) {
 
 export function isObject(obj) {
   return Object.prototype.toString.call(obj).indexOf('Object') > -1;
+}
+
+export function getPrefix(mode) {
+  let prefix = '';
+  if (mode === 'chat mode') {
+    prefix = chalk.greenBright(`[${chatModeKeywords[0]}]`);
+  } else if (mode === 'cli mode') {
+    prefix = chalk.greenBright(`[${cliModeKeywords[0]}]`);
+  }
+  return prefix;
+}
+
+/**
+ * @description: 提取命令行
+ * @export
+ * @param {string} str e.g. ">tree"
+ * @return {boolean}
+ */
+export function extractCommandLine(text) {
+  const regex = />.*$/m;
+  const match = text.match(regex);
+  if (match) {
+    return match[0];
+  }
+  return null;
 }

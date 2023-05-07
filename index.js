@@ -8,12 +8,30 @@ import bodyParser from 'body-parser';
 import fs, { promises as fsPromise } from 'node:fs';
 import { promises as readlinePromise } from 'node:readline';
 import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from 'openai';
-import { getSystemDownloadFolderPath, getAddress, dotenvConfig, isJSON, isObject } from './utils/index.js';
+import {
+  getSystemDownloadFolderPath,
+  getAddress,
+  dotenvConfig,
+  isJSON,
+  isObject,
+  getPrefix,
+  extractCommandLine,
+} from './utils/index.js';
+import {
+  rootDir,
+  exitKeywords,
+  saveKeywords,
+  cleanKeywords,
+  readKeywords,
+  serveKeywords,
+  stopKeywords,
+  helpKeywords,
+  chatModeKeywords,
+  cliModeKeywords,
+  commandsOutput,
+  cliModeSystem,
+} from './utils/constant.js';
 import request from './utils/request.js';
-
-// 项目根目录: process.cwd() 获取的是执行命令的目录，而不是文件目录
-// 如果安装命令行之后，路径获取的是当前执行命令行的目录，因此不能使用 process.cwd()
-const rootDir = path.resolve(process.argv[1], '..');
 
 // 加载环境变量
 if (!process.env.OPENAI_API_KEY) {
@@ -21,55 +39,36 @@ if (!process.env.OPENAI_API_KEY) {
   dotenvConfig(dotenvFiles);
 }
 
-// 对话关键词
-const exitKeywords = ['退出', '退下', 'exit', 'quit', 'bye'];
+// 初始化模式
+let mode = 'chat mode'; // chat mode | cli mode
 
-const saveKeywords = ['保存会话', '保存', 'save'];
+// 初始化模式提示前缀
+let prefix = getPrefix(mode);
 
-const cleanKeywords = ['清空会话', '清空', 'clean'];
-
-const readKeywords = ['读取会话', '读取', 'read'];
-
-const serveKeywords = ['启动服务', '服务', 'serve'];
-
-const stopKeywords = ['关闭服务', '终止', 'stop'];
-
-const commandKeywords = ['指令', '指令大全', 'help'];
-
-const commandsOutput = `\n
-______________________________________________________________\n
-${chalk.green('特殊指令(actions)：')}\n
-${chalk.green('1.')} ${exitKeywords.join(chalk.green(' | '))} ${chalk.green(': 退出对话')}\n
-${chalk.green('2.')} ${saveKeywords.join(chalk.green(' | '))} ${chalk.green(': 保存对话')}\n
-${chalk.green('3.')} ${cleanKeywords.join(chalk.green(' | '))} ${chalk.green(': 清空对话')}\n
-${chalk.green('4.')} ${readKeywords.join(chalk.green(' | '))} ${chalk.green(': 读取对话')}\n
-${chalk.green('5.')} ${serveKeywords.join(chalk.green(' | '))} ${chalk.green(': 启动服务')}\n
-${chalk.green('6.')} ${stopKeywords.join(chalk.green(' | '))} ${chalk.green(': 关闭服务')}\n
-${chalk.green('7.')} ${commandKeywords.join(chalk.green(' | '))}${chalk.green(' : 查看指令大全')}\n
-${chalk.green('8.')} \\img ${chalk.green('<')}图片描述${chalk.green('>')} ${chalk.green(': 生成图片')}\n
-______________________________________________________________\n
-\n`;
-
-// 对话历史记录
+// 初始化对话模式历史记录
 let chatLog = [];
 
-// 接口服务
+// 初始化命令行模式历史记录
+let cliLog = [cliModeSystem];
+
+// 初始化接口服务
 let server = null;
 
-// 控制台输入
+// 初始化控制台输入
 const rlp = readlinePromise.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
+// 初始化控制台loading
+const spinner = ora('loading...');
+
+// 初始化 Openai
 const configuration = new Configuration({
   organization: process.env.ORGANIZATION_ID,
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const spinner = ora('loading...');
-
-// Openai API
 const openai = new OpenAIApi(configuration);
 
 /**
@@ -99,14 +98,21 @@ function imageGenerator(imgDesc) {
 
 /**
  * @description 对话生成函数
+ * @param {'cli mode' | 'chat mode'} _mode
  * @param {any[]} messages
  * @return {Promise<{data: any[], err: Error}>}
  */
-function chatCompletionGenerator(messages) {
+function chatCompletionGenerator(_mode, messages) {
+  let temperature = 0.9; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
+  if (_mode === 'cli mode') {
+    // 命令行模式下，创造性程度最低，需要严格按照system限定输出
+    temperature = 0;
+  }
   return openai
     .createChatCompletion({
       model: 'gpt-3.5-turbo-0301',
       messages,
+      temperature,
     })
     .then((res) => {
       const { choices } = res.data;
@@ -183,37 +189,70 @@ export function serverGenerator(port) {
  * @return {*}
  */
 async function chat() {
-  const answer = await rlp.question(chalk.greenBright('请输入对话内容：'));
+  const answer = await rlp.question(`${prefix} 请输入：`);
+
+  if (chatModeKeywords.includes(answer)) {
+    if (mode === 'chat mode') {
+      console.log(chalk.bgRed('\n ChatGPT 已经处于对话模式 \n'));
+      chat();
+      return;
+    }
+    console.log(chalk.bgGreen('\n ChatGPT 已切换到对话模式 \n'));
+    mode = 'chat mode';
+    prefix = getPrefix(mode);
+    chat();
+    return;
+  }
+
+  if (cliModeKeywords.includes(answer)) {
+    if (mode === 'cli mode') {
+      console.log(chalk.bgRed('\n ChatGPT 已经处于命令行模式 \n'));
+      chat();
+      return;
+    }
+    console.log(chalk.bgGreen('\n ChatGPT 已切换到命令行模式 \n'));
+    mode = 'cli mode';
+    prefix = getPrefix(mode);
+    chat();
+    return;
+  }
 
   if (exitKeywords.includes(answer)) {
     if (server) {
       server.close((err) => {
         if (err) process.exit(1);
-        console.log(chalk.bgRed('\n ChatGPT 退出对话 \n'));
+        console.log(chalk.bgRed('\n ChatGPT 退出会话 \n'));
         server = null;
         rlp.close();
       });
       return;
     }
-    console.log(chalk.bgRed('\n ChatGPT 退出对话 \n'));
+    console.log(chalk.bgRed('\n ChatGPT 退出会话 \n'));
     rlp.close();
     return;
   }
 
   if (cleanKeywords.includes(answer)) {
-    chatLog.length = 0;
+    // 设置初始状态
+    chatLog = [];
+    cliLog = [cliModeSystem];
+    // 清屏并提示
     console.clear();
-    console.log(chalk.bgGreen('\n ChatGPT 已经清空对话历史 \n'));
+    console.log(chalk.bgGreen('\n ChatGPT 已经清空会话历史 \n'));
     chat();
     return;
   }
 
   if (saveKeywords.includes(answer)) {
-    const chatLogString = JSON.stringify(chatLog);
     const downloadDir = getSystemDownloadFolderPath();
-    const filePath = path.join(downloadDir, 'chat-log.json');
-    await fsPromise.writeFile(filePath, chatLogString, { encoding: 'utf-8' });
-    console.log(`${chalk.bgGreen('\n ChatGPT 已经保存对话历史：')} => ${filePath}\n`);
+    const chatLogString = JSON.stringify(chatLog);
+    const chatFilePath = path.join(downloadDir, 'chat-log.json');
+    await fsPromise.writeFile(chatFilePath, chatLogString, { encoding: 'utf-8' });
+    console.log(`${chalk.bgGreen('\n ChatGPT 已保存对话历史：')} => ${chatFilePath}\n`);
+    const cliLogString = JSON.stringify(cliLog);
+    const cliFilePath = path.join(downloadDir, 'cli-log.json');
+    await fsPromise.writeFile(cliFilePath, cliLogString, { encoding: 'utf-8' });
+    console.log(`${chalk.bgGreen('\n ChatGPT 已保存命令行历史：')} => ${cliFilePath}\n`);
     chat();
     return;
   }
@@ -222,9 +261,20 @@ async function chat() {
     const inputPath = await rlp.question(chalk.greenBright('\n请输入读取文件路径(*.json)：'));
     if (fs.existsSync(inputPath)) {
       const json = await fsPromise.readFile(inputPath, { encoding: 'utf-8' });
-      const readChatLog = JSON.parse(json);
-      chatLog = chatLog.concat(readChatLog);
-      console.log(chalk.bgGreen('\n ChatGPT 已经读取对话历史 \n'));
+      const readLog = JSON.parse(json);
+      // 判断会话mode
+      const { role, content } = cliModeSystem;
+      const isCliMode = readLog.filter((l) => l.content === content && l.role === role).length > 0;
+      if (isCliMode) {
+        mode = 'cli mode';
+        prefix = getPrefix(mode);
+        cliLog = cliLog.concat(readLog);
+      } else {
+        mode = 'chat mode';
+        prefix = getPrefix(mode);
+        chatLog = chatLog.concat(readLog);
+      }
+      console.log(chalk.bgGreen(`\n ChatGPT 已读取${chalk.bgGray(prefix)}历史\n`));
     } else {
       console.log(chalk.bgRed('\n ChatGPT 读取文件不存在 \n'));
     }
@@ -273,7 +323,7 @@ async function chat() {
     return;
   }
 
-  if (commandKeywords.includes(answer)) {
+  if (helpKeywords.includes(answer)) {
     console.log(`\n以下是 ChatGPT 指令大全${commandsOutput}`);
     chat();
     return;
@@ -303,9 +353,17 @@ async function chat() {
     content: answer,
   };
 
-  chatLog.push(input);
+  let messages = [];
 
-  const { data, err } = await chatCompletionGenerator(chatLog);
+  if (mode === 'cli mode') {
+    cliLog.push(input);
+    messages = cliLog;
+  } else if (mode === 'chat mode') {
+    chatLog.push(input);
+    messages = chatLog;
+  }
+
+  const { data, err } = await chatCompletionGenerator(mode, messages);
 
   spinner.stop();
 
@@ -317,7 +375,16 @@ async function chat() {
         role,
         content,
       };
-      chatLog.push(output);
+      if (mode === 'cli mode') {
+        // 万一答案里不止有命令行，还有其他内容，需要提取命令行
+        const command = extractCommandLine(content) || 'UNKNOWN';
+        cliLog.push({
+          ...output,
+          content: command,
+        });
+      } else if (mode === 'chat mode') {
+        chatLog.push(output);
+      }
     });
   } else {
     console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
