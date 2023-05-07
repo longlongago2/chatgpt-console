@@ -30,10 +30,12 @@ export const chatModeKeywords = ['对话模式', 'chat mode'];
 
 export const cliModeKeywords = ['命令行模式', 'cli mode'];
 
+export const interviewerModeKeywords = ['面试官模式', 'interviewer mode'];
+
 // 指令罗列输出内容
 export const commandsOutput = `\n
-______________________________________________________________\n
-${chalk.green('特殊指令：')}\n
+${chalk.green('------------------------------------------------------\n')}
+${chalk.green('指令：')}\n
 ${chalk.green('1.')} ${exitKeywords.join(chalk.green(' | '))} ${chalk.green(': 退出对话')}\n
 ${chalk.green('2.')} ${saveKeywords.join(chalk.green(' | '))} ${chalk.green(': 保存对话')}\n
 ${chalk.green('3.')} ${cleanKeywords.join(chalk.green(' | '))} ${chalk.green(': 清空对话')}\n
@@ -44,7 +46,7 @@ ${chalk.green('7.')} ${helpKeywords.join(chalk.green(' | '))}${chalk.green(' : �
 ${chalk.green('8.')} ${chatModeKeywords.join(chalk.green(' | '))}${chalk.green(' : 切换对话模式（默认）')}\n
 ${chalk.green('9.')} ${cliModeKeywords.join(chalk.green(' | '))}${chalk.green(' : 切换命令行模式')}\n
 ${chalk.green('10.')} \\img ${chalk.green('<')}图片描述${chalk.green('>')} ${chalk.green(': 生成图片')}\n
-______________________________________________________________\n
+${chalk.green('------------------------------------------------------\n')}
 \n`;
 
 // 命令行模式下的系统指令
@@ -59,5 +61,18 @@ export const cliModeSystem = {
   3. If the translated result consists of more than one line of commands, you must use '&' or '&&' to combine them into a single line of command. For example: ">cd .. & cd ..".
   
   4. If it is the same question, each answer must be consistent.
+  `,
+};
+
+// 面试官模式下的系统指令
+export const interviewerModeSystem = {
+  role: ChatCompletionRequestMessageRoleEnum.System,
+  content: `You are an interviewer. You are interviewing a candidate for a job. You are asking the candidate questions about their work experience and skills.
+
+  1. I will give you some relatively long resumes, please summarize the candidate's name, gender, age, marital status, skills, work and project experience in a relatively short language after you get the resume.
+
+  2. If I ask you to come up with interview questions, you have to know which position you need to hire for, and if you don't, please ask me.
+
+  3. If I ask you to come up with interview questions, you have to know what are the core skills and strengths that the candidates you hire should possess, if you don’t know, please ask me.
   `,
 };

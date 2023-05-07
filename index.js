@@ -5,6 +5,7 @@ import path from 'node:path';
 import express from 'express';
 import favicon from 'serve-favicon';
 import bodyParser from 'body-parser';
+import iconv from 'iconv-lite';
 import fs, { promises as fsPromise } from 'node:fs';
 import { promises as readlinePromise } from 'node:readline';
 import { exec } from 'node:child_process';
@@ -31,6 +32,8 @@ import {
   cliModeKeywords,
   commandsOutput,
   cliModeSystem,
+  interviewerModeKeywords,
+  interviewerModeSystem,
 } from './utils/constant.js';
 import request from './utils/request.js';
 
@@ -41,7 +44,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 // 初始化模式
-let mode = 'chat mode'; // chat mode | cli mode
+let mode = 'chat mode'; // chat mode | cli mode | interviewer mode
 
 // 初始化模式提示前缀
 let prefix = getPrefix(mode);
@@ -51,6 +54,9 @@ let chatLog = [];
 
 // 初始化命令行模式历史记录
 let cliLog = [cliModeSystem];
+
+// 初始化面试官模式历史记录
+let interviewerLog = [interviewerModeSystem];
 
 // 初始化接口服务
 let server = null;
@@ -99,7 +105,7 @@ function imageGenerator(imgDesc) {
 
 /**
  * @description 对话生成函数
- * @param {'cli mode' | 'chat mode'} _mode
+ * @param {'cli mode' | 'chat mode' | 'interviewer mode'} _mode
  * @param {any[]} messages
  * @return {Promise<{data: any[], err: Error}>}
  */
@@ -194,7 +200,7 @@ export function serverGenerator(port) {
 export function commandGenerator(command) {
   const commandPromise = new Promise((resolve, reject) => {
     try {
-      exec(command, (error, stdout, stderr) => {
+      exec(command, { encoding: 'binary' }, (error, stdout, stderr) => {
         if (error) {
           reject(error);
           return;
@@ -203,7 +209,8 @@ export function commandGenerator(command) {
           reject(new Error(stderr));
           return;
         }
-        resolve(stdout);
+        const _stdout = iconv.decode(Buffer.from(stdout, 'binary'), 'gbk');
+        resolve(_stdout);
       });
     } catch (err) {
       reject(err);
@@ -261,7 +268,7 @@ export async function execCommand(command) {
  * @return {*}
  */
 async function chat() {
-  const answer = await rlp.question(`${prefix} 请输入：`);
+  const answer = await rlp.question(`${prefix} user：`);
 
   if (chatModeKeywords.includes(answer)) {
     if (mode === 'chat mode') {
@@ -289,6 +296,20 @@ async function chat() {
     return;
   }
 
+  if (interviewerModeKeywords.includes(answer)) {
+    if (mode === 'interviewer mode') {
+      console.log(chalk.bgRed('\n ChatGPT 已经处于面试官模式 \n'));
+      chat();
+      return;
+    }
+    console.log(chalk.bgGreen('\n ChatGPT 已切换到面试官模式 \n'));
+    mode = 'interviewer mode';
+    prefix = getPrefix(mode);
+    // TODO: 读取本地简历，并输入到chatGPT
+    chat();
+    return;
+  }
+
   if (exitKeywords.includes(answer)) {
     if (server) {
       server.close((err) => {
@@ -308,6 +329,7 @@ async function chat() {
     // 设置初始状态
     chatLog = [];
     cliLog = [cliModeSystem];
+    interviewerLog = [interviewerModeSystem];
     // 清屏并提示
     console.clear();
     console.log(chalk.bgGreen('\n ChatGPT 已经清空会话历史 \n'));
@@ -325,6 +347,10 @@ async function chat() {
     const cliFilePath = path.join(downloadDir, 'cli-log.json');
     await fsPromise.writeFile(cliFilePath, cliLogString, { encoding: 'utf-8' });
     console.log(`${chalk.bgGreen('\n ChatGPT 已保存命令行历史：')} => ${cliFilePath}\n`);
+    const interviewerLogString = JSON.stringify(interviewerLog);
+    const interviewerFilePath = path.join(downloadDir, 'interviewer-log.json');
+    await fsPromise.writeFile(interviewerFilePath, interviewerLogString, { encoding: 'utf-8' });
+    console.log(`${chalk.bgGreen('\n ChatGPT 已保存面试官历史：')} => ${interviewerFilePath}\n`);
     chat();
     return;
   }
@@ -332,15 +358,22 @@ async function chat() {
   if (readKeywords.includes(answer)) {
     const inputPath = await rlp.question(chalk.greenBright('\n请输入读取文件路径(*.json)：'));
     if (fs.existsSync(inputPath)) {
+      // 读取会话历史记录文件
       const json = await fsPromise.readFile(inputPath, { encoding: 'utf-8' });
       const readLog = JSON.parse(json);
-      // 判断会话mode
       const { role, content } = cliModeSystem;
+      const { role: ri, content: ci } = interviewerModeSystem;
       const isCliMode = readLog.filter((l) => l.content === content && l.role === role).length > 0;
+      const isInterviewerMode = readLog.filter((l) => l.content === ci && l.role === ri).length > 0;
+      // 判断会话mode
       if (isCliMode) {
         mode = 'cli mode';
         prefix = getPrefix(mode);
         cliLog = cliLog.concat(readLog);
+      } else if (isInterviewerMode) {
+        mode = 'interviewer mode';
+        prefix = getPrefix(mode);
+        interviewerLog = interviewerLog.concat(readLog);
       } else {
         mode = 'chat mode';
         prefix = getPrefix(mode);
@@ -433,6 +466,9 @@ async function chat() {
   } else if (mode === 'chat mode') {
     chatLog.push(input);
     messages = chatLog;
+  } else if (mode === 'interviewer mode') {
+    interviewerLog.push(input);
+    messages = interviewerLog;
   }
 
   const { data, err } = await chatCompletionGenerator(mode, messages);
@@ -443,7 +479,7 @@ async function chat() {
   if (data && Array.isArray(data)) {
     data.forEach((choice) => {
       const { role, content } = choice.message;
-      console.log(`${chalk.yellowBright(`\n ChatGPT ${role}: `) + content}\n`);
+      console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
       const output = {
         role,
         content,
@@ -457,6 +493,8 @@ async function chat() {
         });
       } else if (mode === 'chat mode') {
         chatLog.push(output);
+      } else if (mode === 'interviewer mode') {
+        interviewerLog.push(output);
       }
     });
   } else {
@@ -476,7 +514,7 @@ async function chat() {
 }
 
 console.log(
-  `${chalk.bgBlue('ChatGPT:')} 你好，我是 ChatGPT！你可以和我聊天。${commandsOutput}⚡ 开始聊天吧！\n`,
+  `\n🤖 你好，我是 ${chalk.bgMagenta('ChatGPT')}，你可以和我聊天。${commandsOutput}⚡ 马上开启聊天吧！\n`,
 );
 
 // 执行控制台对话
