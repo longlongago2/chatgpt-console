@@ -49,6 +49,16 @@ HTTP_PROXY = http://127.0.0.1:7890
 HTTPS_PROXY = http://127.0.0.1:7890
 ```
 
+### Features
+
+* Support command line intelliSense, you only need to describe to generate a command line and execute
+
+* Support import/export history chat log
+
+* Proxy openai service
+
+* Support image generator
+
 ## Screenshot
 
 <center>
