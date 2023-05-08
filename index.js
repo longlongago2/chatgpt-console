@@ -108,7 +108,7 @@ function imageGenerator(imgDesc) {
  * @return {Promise<{data: any[], err: Error}>}
  */
 function chatCompletionGenerator(_mode, messages) {
-  let temperature = 0.9; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
+  let temperature = 1; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
   if (_mode === 'cli mode') {
     // 命令行模式下，创造性程度最低，需要严格按照system限定输出
     temperature = 0;
@@ -146,12 +146,12 @@ export function serverGenerator(port) {
       app.use(favicon(path.join(rootDir, 'public', 'favicon.ico')));
       app.use(bodyParser.json());
       app.use(bodyParser.urlencoded({ extended: true }));
-      app.all('/proxy/*', async (req, res) => {
+      app.all('/openai/*', async (req, res) => {
         try {
           const { method, params } = req;
           const url = params['0'];
           const response = await request({
-            url: `https://${url}`,
+            url: `https://api.openai.com/${url}`,
             method,
             params: req.query,
             data: req.body,
@@ -380,8 +380,9 @@ async function chat() {
       ${chalk.green('On Your Network')}: http://${ip}:${port}\n
       ${chalk.green('Local')}:           http://localhost:${port}\n
       ${chalk.green('使用方法')}:\n
-      ChatGPT 接口代理: http://localhost:${port}/proxy/<openai接口地址>\n
-      例如: http://localhost:${port}/proxy/api.openai.com/v1/completions\n`,
+      ChatGPT 接口代理: http://localhost:${port}/openai/<openai接口地址>\n
+      例如: http://localhost:${port}/openai/v1/chat/completions\n
+      这样您可以无需验证openaiKey，直接使用ChatGPT\n`,
     );
     chat();
     return;
