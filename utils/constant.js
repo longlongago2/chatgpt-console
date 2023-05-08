@@ -54,7 +54,11 @@ ${chalk.green('10.')} \\img ${chalk.green('<')}图片描述${chalk.green('>')} $
 ${chalk.green('------------------------------------------------------\n')}
 \n`;
 
-// 命令行模式下的系统角色定义
+// 命令行模式下系统【指导聊天模型】
+// 根据文档得知：
+// 1.gpt-3.5-turbo-0301 并不总是高度关注系统消息，未来的模型将被训练为更加关注系统消息
+// 2.一般来说，gpt-3.5-turbo-0301 对系统消息的关注度不高，因此重要的说明往往放在用户消息中比较好。
+// 因此，现阶段【指导聊天模型】最好再用用户消息加强一遍
 export const cliDefinition = {
   role: ChatCompletionRequestMessageRoleEnum.System,
   content: `You are a command line translation program. You can translate natural language instructions from human language into corresponding command line statements.
@@ -65,6 +69,12 @@ export const cliDefinition = {
   
   3. If the translated result consists of more than one line of commands, you must use '&' or '&&' to combine them into a single line of command. For example: ">cd .. & cd ..".
   
-  4. If it is the same question, each answer must be consistent.
+  4. If the user asks the same question, it means that the user is not satisfied with the previous answer, please try to use new data to answer.
   `,
+};
+
+// 命令行模式下用户【指导聊天模型】
+export const cliUserDefinition = {
+  role: ChatCompletionRequestMessageRoleEnum.User,
+  content: cliDefinition.content,
 };

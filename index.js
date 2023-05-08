@@ -34,6 +34,7 @@ import {
   cliModeKeywords,
   commandsOutput,
   cliDefinition,
+  cliUserDefinition,
 } from './utils/constant.js';
 import request from './utils/request.js';
 
@@ -53,7 +54,7 @@ let prefix = getPrefix(mode);
 let chatLog = [];
 
 // 初始化命令行模式历史记录
-let cliLog = [cliDefinition];
+let cliLog = [cliDefinition, cliUserDefinition];
 
 // 初始化接口服务
 let server = null;
@@ -312,7 +313,7 @@ async function chat() {
   if (cleanKeywords.includes(answer)) {
     // 设置初始状态
     chatLog = [];
-    cliLog = [cliDefinition];
+    cliLog = [cliDefinition, cliUserDefinition];
     // 清屏并提示
     console.clear();
     console.log(chalk.bgGreen('\n ChatGPT 已经清空会话历史 \n'));
@@ -470,7 +471,7 @@ async function chat() {
   }
 
   // 命令行模式下，执行命令行
-  if (mode === 'cli mode') {
+  if (mode === 'cli mode' && !err) {
     const command = cliLog[cliLog.length - 1].content;
     if (command !== 'UNKNOWN') {
       // 执行命令行
