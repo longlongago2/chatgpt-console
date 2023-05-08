@@ -67,3 +67,13 @@ HTTPS_PROXY = http://127.0.0.1:7890
 ![screenshot](./public/screenshot.gif)
 
 </center>
+
+## FAQ
+
+### 1. 如何申请 openaiKey
+
+_https://platform.openai.com/account/api-keys_
+
+### 2.openai 官方文档
+
+_https://platform.openai.com/docs/introduction_
