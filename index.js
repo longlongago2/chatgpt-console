@@ -107,7 +107,7 @@ function imageGenerator(imgDesc) {
  * @return {Promise<{data: any[], err: Error}>}
  */
 function chatCompletionGenerator(_mode, messages) {
-  let temperature = 0.9; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
+  let temperature = 1; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
   if (_mode === 'cli mode') {
     // 命令行模式下，创造性程度最低，需要严格按照system限定输出
     temperature = 0;
