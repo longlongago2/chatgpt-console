@@ -107,21 +107,28 @@ function imageGenerator(imgDesc) {
  * @param {any[]} messages
  * @return {Promise<{data: any[], err: Error}>}
  */
-function chatCompletionGenerator(_mode, messages) {
+function chatCompletionGenerator(_mode, messages, stream = false) {
   let temperature = 1; // 0-2 之间的浮点数，表示模型生成文本的创造性程度 0最保守 2最大创造性
   if (_mode === 'cli mode') {
     // 命令行模式下，创造性程度最低，需要严格按照system限定输出
     temperature = 0;
   }
   return openai
-    .createChatCompletion({
-      model: 'gpt-3.5-turbo-0301',
-      messages,
-      temperature,
-    })
+    .createChatCompletion(
+      {
+        model: 'gpt-3.5-turbo-0301',
+        messages,
+        temperature,
+        n: 1, // 只生成一个结果 choices.length === 1
+        stream,
+      },
+      {
+        responseType: stream ? 'stream' : 'json',
+      },
+    )
     .then((res) => {
-      const { choices } = res.data;
-      return { data: choices };
+      if (stream) return { data: res.data };
+      return { data: res.data.choices };
     })
     .catch((e) => {
       if (e.response) {
@@ -130,6 +137,50 @@ function chatCompletionGenerator(_mode, messages) {
       }
       return { err: e };
     });
+}
+
+/**
+ * @description 处理接口流式数据
+ * @param {import('stream').Stream} stream
+ * @param {Function} onOutput 输出回调
+ * @return {Promise<void>}
+ */
+function streamPromise(stream, onOutput) {
+  const promise = new Promise((resolve, reject) => {
+    let _role;
+    let _content = '';
+    onOutput(chalk.yellowBright('[ChatGPT] 小助手：'));
+    stream.on('data', (chunk) => {
+      try {
+        const payloads = chunk.toString().split('\n\n');
+        payloads.forEach((payload) => {
+          if (payload.includes('[DONE]')) {
+            if (onOutput) onOutput('\n\n');
+            return;
+          }
+          if (payload.startsWith('data:')) {
+            const data = JSON.parse(payload.replace('data: ', ''));
+            const { role, content } = data.choices[0].delta;
+            if (role) _role = role;
+            if (content) {
+              _content += content;
+              if (onOutput) onOutput(content);
+            }
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+    stream.on('end', () => {
+      const message = { role: _role, content: _content };
+      resolve(message);
+    });
+    stream.on('error', (err) => {
+      reject(err);
+    });
+  });
+  return promise.then((message) => ({ data: message })).catch((err) => ({ err }));
 }
 
 /**
@@ -267,7 +318,7 @@ export async function execCommand(command) {
  * @return {*}
  */
 async function chat() {
-  const answer = await rlp.question(`${prefix} user：`);
+  const answer = await rlp.question(`${prefix} 用户：`);
 
   if (chatModeKeywords.includes(answer)) {
     if (mode === 'chat mode') {
@@ -445,37 +496,39 @@ async function chat() {
     messages = chatLog;
   }
 
-  const { data, err } = await chatCompletionGenerator(mode, messages);
+  const { data: stream, err: apiErr } = await chatCompletionGenerator(mode, messages, true);
 
   spinner.stop();
 
-  if (err) {
-    console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
+  if (apiErr) {
+    console.log(
+      `\n\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${apiErr.type || 'Error'}: ${apiErr.message}\n`,
+    );
     chat();
     return;
   }
 
   // 接口出参
-  // OpenAI的chat/completions API接口在返回结果时，可能会返回多个choices。这通常发生在以下情况下：
-  // 1.max_tokens参数设置过大，导致模型生成了多个可能的结果。
-  // 2.n参数设置大于1，请求多个结果。
-  // 3.当模型遇到歧义或不确定性时，可能会生成多个结果。
-  // 详情见接口文档 https://platform.openai.com/docs/api-reference/chat/create
-  if (data && Array.isArray(data)) {
+  console.log('');
+  const { data, err } = await streamPromise(stream, (m) => {
+    // 打字机效果
+    rlp.write(m);
+    // TODO: 打字机的输入不计入控制台输入历史记录
+  });
+
+  if (err) {
+    console.log(`\n\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${err.message}\n`);
+    chat();
+    return;
+  }
+
+  if (data) {
+    const { role, content } = data;
     if (mode === 'chat mode') {
-      // 如果chatGPT返回多个完成结果，则接受多个结果并展示，结果可以接受更加多样。
-      data.forEach((choice) => {
-        const { role, content } = choice.message;
-        console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
-        const output = { role, content };
-        chatLog.push(output);
-      });
+      const output = { role, content };
+      chatLog.push(output);
     }
     if (mode === 'cli mode') {
-      // 如果chatGPT返回多个完成结果，只接受第一个结果，让结果更加确定。
-      const choice = data[0];
-      const { role, content } = choice.message;
-      console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
       // 如果答案里不止有命令行，还有其他内容，全部抛弃，只需要提取命令行结果以纠正gpt的回答，让结果更加确定。
       const command = extractCommandLine(content) || 'UNKNOWN';
       const output = { role, content: command };
