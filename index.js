@@ -426,6 +426,7 @@ async function chat() {
     return;
   }
 
+  // 越过重重阻拦，则开始请求 chatGPT 聊天
   spinner.start();
 
   const input = {
@@ -433,12 +434,13 @@ async function chat() {
     content: answer,
   };
 
+  // 接口入参
   let messages = [];
-
   if (mode === 'cli mode') {
     cliLog.push(input);
     messages = cliLog;
-  } else if (mode === 'chat mode') {
+  }
+  if (mode === 'chat mode') {
     chatLog.push(input);
     messages = chatLog;
   }
@@ -447,36 +449,41 @@ async function chat() {
 
   spinner.stop();
 
-  // 输出回答并记录历史
-  if (data && Array.isArray(data)) {
-    data.forEach((choice) => {
-      const { role, content } = choice.message;
-      console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
-      const output = {
-        role,
-        content,
-      };
-      if (mode === 'cli mode') {
-        // 万一答案里不止有命令行，还有其他内容，需要提取命令行，纠正gpt的回答
-        const command = extractCommandLine(content) || 'UNKNOWN';
-        cliLog.push({
-          ...output,
-          content: command,
-        });
-      } else if (mode === 'chat mode') {
-        chatLog.push(output);
-      }
-    });
-  } else {
+  if (err) {
     console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
+    chat();
+    return;
   }
 
-  // 命令行模式下，执行命令行
-  if (mode === 'cli mode' && !err) {
-    const command = cliLog[cliLog.length - 1].content;
-    if (command !== 'UNKNOWN') {
+  // 接口出参
+  // OpenAI的chat/completions API接口在返回结果时，可能会返回多个choices。这通常发生在以下情况下：
+  // 1.max_tokens参数设置过大，导致模型生成了多个可能的结果。
+  // 2.n参数设置大于1，请求多个结果。
+  // 3.当模型遇到歧义或不确定性时，可能会生成多个结果。
+  // 详情见接口文档 https://platform.openai.com/docs/api-reference/chat/create
+  if (data && Array.isArray(data)) {
+    if (mode === 'chat mode') {
+      // 如果chatGPT返回多个完成结果，则接受多个结果并展示，结果可以接受更加多样。
+      data.forEach((choice) => {
+        const { role, content } = choice.message;
+        console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
+        const output = { role, content };
+        chatLog.push(output);
+      });
+    }
+    if (mode === 'cli mode') {
+      // 如果chatGPT返回多个完成结果，只接受第一个结果，让结果更加确定。
+      const choice = data[0];
+      const { role, content } = choice.message;
+      console.log(`${chalk.yellowBright('\n[ChatGPT]')} ${role}: ${content}\n`);
+      // 如果答案里不止有命令行，还有其他内容，全部抛弃，只需要提取命令行结果以纠正gpt的回答，让结果更加确定。
+      const command = extractCommandLine(content) || 'UNKNOWN';
+      const output = { role, content: command };
+      cliLog.push(output);
       // 执行命令行
-      await execCommand(command.replace('>', ''));
+      if (command !== 'UNKNOWN') {
+        await execCommand(command.replace('>', ''));
+      }
     }
   }
 

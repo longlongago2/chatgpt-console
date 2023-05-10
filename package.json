@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-console",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ChatGPT for terminal",
   "main": "index.js",
   "type": "module",
