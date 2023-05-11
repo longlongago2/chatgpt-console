@@ -132,6 +132,10 @@ function chatCompletionGenerator(_mode, messages, stream = false) {
     })
     .catch((e) => {
       if (e.response) {
+        if (stream) {
+          const { status, statusText } = e.response;
+          return { err: new Error(`${statusText}(${status})`) };
+        }
         const { error } = e.response.data;
         return { err: error };
       }
@@ -149,7 +153,6 @@ function streamPromise(stream, onOutput) {
   const promise = new Promise((resolve, reject) => {
     let _role;
     let _content = '';
-    onOutput(chalk.yellowBright('[ChatGPT] 小助手：'));
     stream.on('data', (chunk) => {
       try {
         const payloads = chunk.toString().split('\n\n');
@@ -501,15 +504,13 @@ async function chat() {
   spinner.stop();
 
   if (apiErr) {
-    console.log(
-      `\n\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${apiErr.type || 'Error'}: ${apiErr.message}\n`,
-    );
+    console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${apiErr.type || 'Error'}: ${apiErr.message}\n`);
     chat();
     return;
   }
 
   // 接口出参
-  console.log('');
+  rlp.question(chalk.yellowBright('\n[ChatGPT] 小助手：'));
   const { data, err } = await streamPromise(stream, (m) => {
     // 打字机效果
     rlp.write(m);
@@ -517,7 +518,7 @@ async function chat() {
   });
 
   if (err) {
-    console.log(`\n\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${err.message}\n`);
+    console.log(`\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${err.message}\n`);
     chat();
     return;
   }
@@ -544,9 +545,9 @@ async function chat() {
 }
 
 console.log(
-  `\n🤖 你好，我是 ${chalk.bgRed(
-    ` ChatGPT terminal v${packageInfo.version} `,
-  )}。${commandsOutput}⚡ 马上开启聊天吧！\n`,
+  `\n🤖 你好，我是 ${chalk.bgRed(` ChatGPT terminal v${packageInfo.version} `)}，输入 ${chalk.green(
+    'help',
+  )} 查看帮助，马上开启聊天吧！⚡\n`,
 );
 
 // 执行控制台对话
