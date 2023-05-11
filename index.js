@@ -66,7 +66,10 @@ const rlp = readlinePromise.createInterface({
 });
 
 // 初始化控制台loading
-const spinner = ora('loading...');
+const spinner = ora({
+  text: 'loading...',
+  discardStdin: false,
+});
 
 // 初始化 Openai
 const configuration = new Configuration({
