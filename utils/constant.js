@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import chalk from 'chalk';
+import appRoot from 'app-root-path';
 import { ChatCompletionRequestMessageRoleEnum } from 'openai';
 
 // Path: utils\constant.js 常量配置
@@ -10,7 +11,7 @@ import { ChatCompletionRequestMessageRoleEnum } from 'openai';
 // process.cwd() 获取的是执行命令行的目录，而不是文件目录
 // 如果安装命令行之后，路径获取的是当前执行命令行的目录，
 // 因此不能使用 process.cwd()
-export const rootDir = path.resolve(process.argv[1], '..');
+export const rootDir = appRoot.path;
 
 export const pkgJsonPath = path.join(rootDir, 'package.json');
 

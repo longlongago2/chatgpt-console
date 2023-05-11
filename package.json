@@ -23,6 +23,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "app-root-path": "^3.1.0",
     "axios": "^1.4.0",
     "body-parser": "^1.20.2",
     "chalk": "^5.2.0",
