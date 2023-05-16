@@ -256,17 +256,23 @@ export function commandGenerator(command) {
   const commandPromise = new Promise((resolve, reject) => {
     try {
       exec(command, { encoding: 'binary' }, (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
+        if (stdout) {
+          // 防止输出中文乱码
+          const _stdout = iconv.decode(Buffer.from(stdout, 'binary'), 'gbk');
+          resolve(_stdout);
           return;
         }
         if (stderr) {
-          reject(new Error(stderr));
+          const _stderr = iconv.decode(Buffer.from(stderr, 'binary'), 'gbk');
+          reject(new Error(_stderr));
           return;
         }
-        // 防止输出中文乱码
-        const _stdout = iconv.decode(Buffer.from(stdout, 'binary'), 'gbk');
-        resolve(_stdout);
+        if (error) {
+          const message = iconv.decode(Buffer.from(error.message, 'binary'), 'gbk');
+          reject(new Error(message));
+          return;
+        }
+        resolve();
       });
     } catch (err) {
       reject(err);
