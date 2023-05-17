@@ -5,10 +5,9 @@ import path from 'node:path';
 import express from 'express';
 import favicon from 'serve-favicon';
 import bodyParser from 'body-parser';
-import iconv from 'iconv-lite';
 import fs, { promises as fsPromise } from 'node:fs';
 import { promises as readlinePromise } from 'node:readline';
-import { exec } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from 'openai';
 import {
   getSystemDownloadFolderPath,
@@ -255,24 +254,17 @@ export function serverGenerator(port) {
 export function commandGenerator(command) {
   const commandPromise = new Promise((resolve, reject) => {
     try {
-      exec(command, { encoding: 'binary' }, (error, stdout, stderr) => {
-        if (stdout) {
-          // 防止输出中文乱码
-          const _stdout = iconv.decode(Buffer.from(stdout, 'binary'), 'gbk');
-          resolve(_stdout);
-          return;
-        }
-        if (stderr) {
-          const _stderr = iconv.decode(Buffer.from(stderr, 'binary'), 'gbk');
-          reject(new Error(_stderr));
-          return;
-        }
-        if (error) {
-          const message = iconv.decode(Buffer.from(error.message, 'binary'), 'gbk');
-          reject(new Error(message));
-          return;
-        }
+      const cmd = spawn(command, {
+        shell: process.platform === 'win32',
+        stdio: 'inherit',
+        detached: false,
+        windowsHide: true,
+      });
+      cmd.on('exit', () => {
         resolve();
+      });
+      cmd.on('error', (err) => {
+        reject(err);
       });
     } catch (err) {
       reject(err);
@@ -292,13 +284,12 @@ export async function execCommand(command) {
   const answer = await rlp.question(` -- ${chalk.red('是否执行？')} (Y/N/E)：`);
   const v = answer.trim().toLowerCase();
   if (v === 'y') {
-    const { data, err } = await commandGenerator(command);
+    const { err } = await commandGenerator(command);
     if (err) {
       console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
       return;
     }
-    console.log(chalk.bgGreen('\n命令执行成功\n'));
-    console.log(data);
+    console.log(chalk.bgGreen('\n命令执行完毕\n'));
     return;
   }
   if (v === 'n') {
@@ -312,13 +303,12 @@ export async function execCommand(command) {
       rlp.write(command);
     }, 0);
     const newCommand = await rlp.question(`\n -- ${chalk.blue('编辑命令')}：`);
-    const { data, err } = await commandGenerator(newCommand);
+    const { err } = await commandGenerator(newCommand);
     if (err) {
       console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
       return;
     }
-    console.log(chalk.bgGreen('\n命令执行成功\n'));
-    console.log(data);
+    console.log(chalk.bgGreen('\n命令执行完毕\n'));
     return;
   }
 
