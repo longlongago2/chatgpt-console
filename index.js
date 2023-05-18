@@ -2,12 +2,13 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import path from 'node:path';
+import fs from 'node:fs';
+import fsPromise from 'node:fs/promises';
+import readline from 'node:readline';
+import { spawn } from 'node:child_process';
 import express from 'express';
 import favicon from 'serve-favicon';
 import bodyParser from 'body-parser';
-import fs, { promises as fsPromise } from 'node:fs';
-import { promises as readlinePromise } from 'node:readline';
-import { spawn } from 'node:child_process';
 import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from 'openai';
 import {
   getSystemDownloadFolderPath,
@@ -59,7 +60,7 @@ let cliLog = [cliDefinition, cliUserDefinition];
 let server = null;
 
 // 初始化控制台输入
-const rlp = readlinePromise.createInterface({
+const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
@@ -77,6 +78,23 @@ const configuration = new Configuration({
 });
 
 const openai = new OpenAIApi(configuration);
+
+/**
+ * @description 控制台问答函数
+ * @param {string} qes 问题内容
+ * @return {Promise<string>}
+ */
+function askQuestion(qes) {
+  return new Promise((resolve, reject) => {
+    try {
+      rl.question(qes, (answer) => {
+        resolve(answer);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 /**
  * @description 生成图片函数
@@ -260,6 +278,7 @@ export function commandGenerator(command) {
         detached: false,
         windowsHide: true,
       });
+      console.log(''); // 空一行
       cmd.on('exit', () => {
         resolve();
       });
@@ -281,7 +300,7 @@ export function commandGenerator(command) {
  * @return {*}
  */
 export async function execCommand(command) {
-  const answer = await rlp.question(` -- ${chalk.red('是否执行？')} (Y/N/E)：`);
+  const answer = await askQuestion(` -- ${chalk.red('是否执行？')} (Y/N/E)：`);
   const v = answer.trim().toLowerCase();
   if (v === 'y') {
     const { err } = await commandGenerator(command);
@@ -300,9 +319,9 @@ export async function execCommand(command) {
   if (v === 'e') {
     // 编辑命令
     setTimeout(() => {
-      rlp.write(command);
+      rl.write(command);
     }, 0);
-    const newCommand = await rlp.question(`\n -- ${chalk.blue('编辑命令')}：`);
+    const newCommand = await askQuestion(`\n -- ${chalk.blue('编辑命令')}：`);
     const { err } = await commandGenerator(newCommand);
     if (err) {
       console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
@@ -320,7 +339,7 @@ export async function execCommand(command) {
  * @return {*}
  */
 async function chat() {
-  const answer = await rlp.question(`${prefix} 用户：`);
+  const answer = await askQuestion(`${prefix} 用户：`);
 
   if (chatModeKeywords.includes(answer)) {
     if (mode === 'chat mode') {
@@ -354,12 +373,12 @@ async function chat() {
         if (err) process.exit(1);
         console.log(chalk.bgRed('\n ChatGPT 退出会话 \n'));
         server = null;
-        rlp.close();
+        rl.close();
       });
       return;
     }
     console.log(chalk.bgRed('\n ChatGPT 退出会话 \n'));
-    rlp.close();
+    rl.close();
     return;
   }
 
@@ -389,7 +408,7 @@ async function chat() {
   }
 
   if (readKeywords.includes(answer)) {
-    const inputPath = await rlp.question(chalk.greenBright('\n请输入读取文件路径(*.json)：'));
+    const inputPath = await askQuestion(chalk.greenBright('\n请输入读取文件路径(*.json)：'));
     if (fs.existsSync(inputPath) && isJSONFile(inputPath)) {
       // 读取会话历史记录文件
       const json = await fsPromise.readFile(inputPath, { encoding: 'utf-8' });
@@ -416,7 +435,7 @@ async function chat() {
 
   if (serveKeywords.includes(answer)) {
     if (!server) {
-      const inputPort = (await rlp.question(chalk.greenBright('\n请输入服务端口号(3000)：'))) || 3000;
+      const inputPort = (await askQuestion(chalk.greenBright('\n请输入服务端口号(3000)：'))) || 3000;
       const res = await serverGenerator(inputPort);
       if (res.err) {
         console.log(chalk.bgRed('\n ChatGPT 代理服务启动失败 \n'));
@@ -509,10 +528,10 @@ async function chat() {
   }
 
   // 接口出参
-  rlp.question(chalk.yellowBright('\n[ChatGPT] 小助手：'));
+  askQuestion(chalk.yellowBright('\n[ChatGPT] 小助手：'));
   const { data, err } = await streamPromise(stream, (m) => {
     // 打字机效果
-    rlp.write(m);
+    rl.write(m);
     // TODO: 打字机的输入不计入控制台输入历史记录
   });
 
