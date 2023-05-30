@@ -222,17 +222,21 @@ export function serverGenerator(port) {
       app.use(bodyParser.urlencoded({ extended: true }));
       app.all('/openai/*', async (req, res) => {
         try {
-          const { method, params } = req;
+          const { method, params, headers, body, query } = req;
           const url = params['0'];
+          const proxyURL = `https://api.openai.com/${url}`;
           const response = await request({
-            url: `https://api.openai.com/${url}`,
+            url: proxyURL,
             method,
-            params: req.query,
-            data: req.body,
-            headers: req.headers,
+            headers,
+            data: body,
+            params: query,
+            responseType: 'stream',
           });
-          res.setHeader('Content-Type', 'application/json');
-          res.send(response.data);
+          const stream = response.data;
+          res.status(response.status);
+          res.set(response.headers);
+          stream.pipe(res);
         } catch (error) {
           console.log(chalk.bgRed('\n\n服务器错误\n'));
           console.error(error);
