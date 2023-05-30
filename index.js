@@ -15,10 +15,10 @@ import {
   getAddress,
   dotenvConfig,
   isJSON,
-  isObject,
   getPrefix,
   extractCommandLine,
   isJSONFile,
+  getDateTime,
 } from './utils/index.js';
 import {
   rootDir,
@@ -210,9 +210,10 @@ function streamPromise(stream, onOutput) {
  * @description 创建接口服务
  * @export
  * @param {string} port
+ * @param {{onRequest: (req: import('express').Request) => void, onError: (err: Error) => void}}
  * @return {Promise<{data: import('http').Server, err: Error}>}
  */
-export function serverGenerator(port) {
+export function serverGenerator(port, { onRequest, onError }) {
   const serverPromise = new Promise((resolve, reject) => {
     try {
       const app = express();
@@ -221,6 +222,7 @@ export function serverGenerator(port) {
       app.use(bodyParser.json());
       app.use(bodyParser.urlencoded({ extended: true }));
       app.all('/openai/*', async (req, res) => {
+        onRequest?.(req);
         try {
           const { method, params, headers, body, query } = req;
           const url = params['0'];
@@ -238,16 +240,19 @@ export function serverGenerator(port) {
           res.set(response.headers);
           stream.pipe(res);
         } catch (error) {
-          console.log(chalk.bgRed('\n\n服务器错误\n'));
-          console.error(error);
-          console.log('\n');
+          // console.log(chalk.bgRed('\n\n服务器错误\n'));
+          // console.error(error);
+          // console.log('\n');
+          onError?.(error);
           res.setHeader('Content-Type', 'text/html');
           if (error.response) {
-            const { status, data } = error.response;
-            if (isJSON(data) || isObject(data)) {
+            const { status, statusText, data } = error.response;
+            if (isJSON(data)) {
               res.setHeader('Content-Type', 'application/json');
+              res.status(status).send(data);
+              return;
             }
-            res.status(status).send(data);
+            res.status(status).send(`Internal Server Error: ${statusText}(${status})`);
             return;
           }
           res.status(500).send(`Internal Server Error: ${error.message}`);
@@ -440,7 +445,23 @@ async function chat() {
   if (serveKeywords.includes(answer)) {
     if (!server) {
       const inputPort = (await askQuestion(chalk.greenBright('\n请输入服务端口号(3000)：'))) || 3000;
-      const res = await serverGenerator(inputPort);
+      const res = await serverGenerator(inputPort, {
+        onRequest(req) {
+          console.log(chalk.bgYellow('\n\n接口服务日志\n'));
+          console.log(
+            `${chalk.gray(getDateTime())}: ${chalk.bgGreen(req.method)} ${req.url} ${JSON.stringify(
+              req.body,
+            )}\n`,
+          );
+          chat();
+        },
+        onError(error) {
+          console.log(chalk.bgRed('\n\n服务器错误\n'));
+          console.error(error);
+          console.log('\n');
+          chat();
+        },
+      });
       if (res.err) {
         console.log(chalk.bgRed('\n ChatGPT 代理服务启动失败 \n'));
         console.log(`${res.err.message}\n`);
