@@ -91,7 +91,7 @@ export function extractCommandLine(text) {
 }
 
 /**
- * @description 获取时间：YYYY-MM-DD HH:mm:ss
+ * @description format：YYYY-MM-DD HH:mm:ss
  * @export
  * @return {string}
  */
@@ -99,12 +99,15 @@ export function getDateTime() {
   const date = new Date();
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
-  const day = date.getDate();
-
+  const strDate = date.getDate();
   const hour = date.getHours();
   const minute = date.getMinutes();
   const second = date.getSeconds();
-
-  const time = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-  return time;
+  const formatNumber = (n) => {
+    const s = n.toString();
+    return s[1] ? s : `0${s}`;
+  };
+  return `${year}-${formatNumber(month)}-${formatNumber(strDate)} ${formatNumber(hour)}:${formatNumber(
+    minute,
+  )}:${formatNumber(second)}`;
 }
