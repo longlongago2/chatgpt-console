@@ -99,7 +99,7 @@ _ChatGPT 生成对话失败 => insufficient_quota: You exceeded your current quo
 
 接口余额不足，需要绑定信用卡
 
-## 5. 如何配置第三方的接口和key
+### 5. 如何配置第三方的接口和key
 
 key的配置方式不变，支持第三方接口配置，例如：在 .env 文件中配置 CHATGPT_REGISTRY="https://api.openai-sb.com/v1"
 
