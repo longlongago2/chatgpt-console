@@ -8,9 +8,12 @@
 
 - ⏱️ Support import/export history chat log
 
-- 🧱 Proxy openai service
+- 🧱 Support proxy openai service
+
+- ⚡ Support third-party api
 
 - 📷 Support image generator
+
 
 ## Usage
 
@@ -20,10 +23,10 @@
 # Create .env.local file
 
 # Your chatGPT API key
-OPENAI_API_KEY="sk-4xpqTi08Jn7XX13lI1moT3XXbkXXSzLW7jXXE7oXjMXX"
+OPENAI_API_KEY="your api key"
 
-# Your ChatGPT Identifier for this organization sometimes used in API requests
-ORGANIZATION_ID="org-UlXXTumXqaXcEftXXPAo35XX"
+# [optional] Your ChatGPT Identifier for this organization sometimes used in API requests
+ORGANIZATION_ID="your organization id"
 ```
 
 ### 2. Enter the project root directory and install dependencies
@@ -74,6 +77,8 @@ HTTPS_PROXY = http://127.0.0.1:7890
 
 _https://platform.openai.com/account/api-keys_
 
+ORGANIZATION_ID 可不用配置，必须配置 OPENAI_API_KEY
+
 ### 2. openai 官方文档
 
 _https://platform.openai.com/docs/introduction_
@@ -89,5 +94,13 @@ _ChatGPT 生成对话失败 => Error: Client network socket disconnected before 
 _ChatGPT 生成对话失败 => insufficient_quota: You exceeded your current quota, please check your plan and billing details._
 
 这种情况是您的账户需要付费，chatGPT该氪你金了
+
+### 4. Error: Too Many Requests(429)
+
+接口余额不足，需要绑定信用卡
+
+## 5. 如何配置第三方的接口和key
+
+key的配置方式不变，支持第三方接口配置，例如：在 .env 文件中配置 CHATGPT_REGISTRY="https://api.openai-sb.com/v1"
 
 
