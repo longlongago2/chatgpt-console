@@ -77,7 +77,7 @@ const config = { apiKey: OPENAI_API_KEY };
 if (ORGANIZATION_ID) config.organization = ORGANIZATION_ID;
 if (CHATGPT_REGISTRY) {
   config.basePath = CHATGPT_REGISTRY;
-  console.log(`${chalk.green('ChatGPT API Registry')}: ${CHATGPT_REGISTRY}`);
+  console.log(`\n${chalk.green('ChatGPT API Registry')}: ${CHATGPT_REGISTRY}\n`);
 }
 
 const configuration = new Configuration(config);
