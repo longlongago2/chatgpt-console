@@ -72,10 +72,15 @@ const spinner = ora({
 });
 
 // 初始化 Openai
-const configuration = new Configuration({
-  organization: process.env.ORGANIZATION_ID,
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const { OPENAI_API_KEY, ORGANIZATION_ID, CHATGPT_REGISTRY } = process.env;
+const config = { apiKey: OPENAI_API_KEY };
+if (ORGANIZATION_ID) config.organization = ORGANIZATION_ID;
+if (CHATGPT_REGISTRY) {
+  config.basePath = CHATGPT_REGISTRY;
+  console.log(`${chalk.green('ChatGPT API Registry')}: ${CHATGPT_REGISTRY}`);
+}
+
+const configuration = new Configuration(config);
 
 const openai = new OpenAIApi(configuration);
 
@@ -173,8 +178,8 @@ function streamPromise(stream, onOutput) {
   const promise = new Promise((resolve, reject) => {
     let _role;
     let _content = '';
-    stream.on('data', (chunk) => {
-      try {
+    try {
+      stream.on('data', (chunk) => {
         const payloads = chunk.toString().split('\n\n');
         payloads.forEach((payload) => {
           if (payload.includes('[DONE]')) {
@@ -182,8 +187,13 @@ function streamPromise(stream, onOutput) {
             return;
           }
           if (payload.startsWith('data:')) {
-            const data = JSON.parse(payload.replace('data: ', ''));
-            const { role, content } = data.choices[0].delta;
+            let data;
+            try {
+              data = JSON.parse(payload.replace('data: ', ''));
+            } catch (err) {
+              data = null;
+            }
+            const { role, content } = data?.choices?.[0]?.delta ?? {};
             if (role) _role = role;
             if (content) {
               _content += content;
@@ -191,17 +201,17 @@ function streamPromise(stream, onOutput) {
             }
           }
         });
-      } catch (err) {
+      });
+      stream.on('end', () => {
+        const message = { role: _role, content: _content };
+        resolve(message);
+      });
+      stream.on('error', (err) => {
         reject(err);
-      }
-    });
-    stream.on('end', () => {
-      const message = { role: _role, content: _content };
-      resolve(message);
-    });
-    stream.on('error', (err) => {
+      });
+    } catch (err) {
       reject(err);
-    });
+    }
   });
   return promise.then((message) => ({ data: message })).catch((err) => ({ err }));
 }

@@ -7,15 +7,15 @@ if (!process.env.OPENAI_API_KEY) {
   dotenvConfig(dotenvFiles);
 }
 
-const apiKey = process.env.OPENAI_API_KEY;
-const organization = process.env.ORGANIZATION_ID;
+const { OPENAI_API_KEY, ORGANIZATION_ID } = process.env;
+
+const headers = {};
+if (OPENAI_API_KEY) headers.Authorization = `Bearer ${OPENAI_API_KEY}`;
+if (ORGANIZATION_ID) headers['OpenAI-Organization'] = ORGANIZATION_ID;
 
 export const $axios = axios.create({
   timeout: 0, // 永不超时
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    'OpenAI-Organization': organization,
-  },
+  headers,
 });
 
 /**
