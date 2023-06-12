@@ -22,7 +22,7 @@
 ```yml
 # Create .env.local file
 
-# Your chatGPT API key
+# Your chatGPT API key or the third-party key
 OPENAI_API_KEY="your api key"
 
 # [optional] Your ChatGPT Identifier for this organization sometimes used in API requests
@@ -59,8 +59,17 @@ chatgpt
 # .env file
 # Take Clash as an example, note the port of Clash
 
-HTTP_PROXY = http://127.0.0.1:7890
-HTTPS_PROXY = http://127.0.0.1:7890
+HTTP_PROXY="http://127.0.0.1:7890"
+HTTPS_PROXY="http://127.0.0.1:7890"
+```
+
+or, we support the third-party registry
+
+```yml
+# .env file
+# ChatGPT registry: default is https://api.openai.com/v1, if you have a third-party registry, please change it here.
+
+CHATGPT_REGISTRY="https://api.openai-sb.com/v1"
 ```
 
 ## Screenshot

@@ -193,7 +193,8 @@ function streamPromise(stream, onOutput) {
             } catch (err) {
               data = null;
             }
-            const { role, content } = data?.choices?.[0]?.delta ?? {};
+            if (!data) return;
+            const { role, content } = data.choices?.[0]?.delta ?? {};
             if (role) _role = role;
             if (content) {
               _content += content;
