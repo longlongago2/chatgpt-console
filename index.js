@@ -32,6 +32,8 @@ import {
   helpKeywords,
   chatModeKeywords,
   cliModeKeywords,
+  streamEnableKeywords,
+  streamStopKeywords,
   commandsOutput,
   cliDefinition,
   cliUserDefinition,
@@ -46,6 +48,9 @@ if (!process.env.OPENAI_API_KEY) {
 
 // 初始化模式
 let mode = 'chat mode'; // chat mode | cli mode
+
+// 初始化流式输出
+let streamOutput = true;
 
 // 初始化模式提示前缀
 let prefix = getPrefix(mode);
@@ -80,11 +85,20 @@ const spinner = ora({
 
 // 初始化 Openai
 const { OPENAI_API_KEY, ORGANIZATION_ID, CHATGPT_REGISTRY } = process.env;
-const config = { apiKey: OPENAI_API_KEY };
+const config = {};
+if (OPENAI_API_KEY) config.apiKey = OPENAI_API_KEY;
 if (ORGANIZATION_ID) config.organization = ORGANIZATION_ID;
 if (CHATGPT_REGISTRY) {
   config.basePath = CHATGPT_REGISTRY;
-  console.log(`\n${chalk.green('ChatGPT API Registry')}: ${CHATGPT_REGISTRY}\n`);
+  streamOutput = false;
+  console.log(`\n${chalk.green('ChatGPT API Registry')}: ${CHATGPT_REGISTRY}`);
+  console.log(
+    `\n${chalk.bgYellow(
+      ' 温馨提示 ',
+    )}：检测到您在使用非官方源，这可能导致流式输出不稳定，已自动关闭流式输出，您依然可以通过 ${chalk.green(
+      'stream enable',
+    )} 命令开启流式输出。\n`,
+  );
 }
 
 const configuration = new Configuration(config);
@@ -368,6 +382,30 @@ export async function execCommand(command) {
 async function chat() {
   const answer = await askQuestion(`${prefix} 用户：`);
 
+  if (streamEnableKeywords.includes(answer)) {
+    if (streamOutput) {
+      console.log(chalk.bgRed('\n ChatGPT 已经处于流式输出模式 \n'));
+      chat();
+      return;
+    }
+    console.log(chalk.bgGreen('\n ChatGPT 已切换到流式输出模式 \n'));
+    streamOutput = true;
+    chat();
+    return;
+  }
+
+  if (streamStopKeywords.includes(answer)) {
+    if (!streamOutput) {
+      console.log(chalk.bgRed('\n ChatGPT 已经处于非流式输出模式 \n'));
+      chat();
+      return;
+    }
+    console.log(chalk.bgGreen('\n ChatGPT 已切换到非流式输出模式 \n'));
+    streamOutput = false;
+    chat();
+    return;
+  }
+
   if (chatModeKeywords.includes(answer)) {
     if (mode === 'chat mode') {
       console.log(chalk.bgRed('\n ChatGPT 已经处于对话模式 \n'));
@@ -560,34 +598,46 @@ async function chat() {
     messages = chatLog;
   }
 
-  const { data: stream, err: apiErr } = await chatCompletionGenerator(mode, messages, true);
+  // 调用接口输出message
+  let message;
 
-  spinner.stop();
-
-  if (apiErr) {
-    console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${apiErr.type || 'Error'}: ${apiErr.message}\n`);
-    chat();
-    return;
+  if (streamOutput) {
+    // 流式输出
+    const { data: stream, err } = await chatCompletionGenerator(mode, messages, true);
+    spinner.stop();
+    if (err) {
+      console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
+      chat();
+      return;
+    }
+    // 处理流式输出
+    askQuestion(`\n${chalk.yellowBright('[ChatGPT] 小助手：')}`);
+    rl.preventHistory = true; // 阻止控制台记录历史数据
+    const { data, err: parseErr } = await streamPromise(stream, (m) => {
+      rl.write(m); // 打字机效果：不计入控制台输入历史记录
+    });
+    rl.preventHistory = false; // 恢复控制台记录历史数据
+    if (parseErr) {
+      console.log(`\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${parseErr.message}\n`);
+      chat();
+      return;
+    }
+    message = data;
+  } else {
+    // 非流式输出
+    const { data, err } = await chatCompletionGenerator(mode, messages);
+    spinner.stop();
+    if (err) {
+      console.log(`\n${chalk.bgRed('ChatGPT 生成对话失败')} => ${err.type || 'Error'}: ${err.message}\n`);
+      chat();
+      return;
+    }
+    message = data[0].message;
+    console.log(`\n${chalk.yellowBright('[ChatGPT] 小助手：')}${message.content}\n`);
   }
 
-  // 接口出参
-  askQuestion(chalk.yellowBright('\n[ChatGPT] 小助手：'));
-  rl.preventHistory = true; // 阻止控制台记录历史数据
-  const { data, err } = await streamPromise(stream, (m) => {
-    // 打字机效果
-    // 打字机的输入不计入控制台输入历史记录
-    rl.write(m);
-  });
-  rl.preventHistory = false; // 恢复控制台记录历史数据
-
-  if (err) {
-    console.log(`\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${err.message}\n`);
-    chat();
-    return;
-  }
-
-  if (data) {
-    const { role, content } = data;
+  if (message) {
+    const { role, content } = message;
     if (mode === 'chat mode') {
       const output = { role, content };
       chatLog.push(output);

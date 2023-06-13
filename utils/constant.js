@@ -38,6 +38,10 @@ export const chatModeKeywords = ['对话模式', 'chat mode'];
 
 export const cliModeKeywords = ['命令行模式', 'cli mode'];
 
+export const streamEnableKeywords = ['开启流式输出', 'stream enable'];
+
+export const streamStopKeywords = ['关闭流式输出', 'stream stop'];
+
 // 指令罗列输出内容
 export const commandsOutput = `\n
 ${chalk.green('------------------------------------------------------\n')}
@@ -51,7 +55,9 @@ ${chalk.green('6.')} ${stopKeywords.join(chalk.green(' | '))} ${chalk.green(': �
 ${chalk.green('7.')} ${helpKeywords.join(chalk.green(' | '))}${chalk.green(' : 查看指令大全')}\n
 ${chalk.green('8.')} ${chatModeKeywords.join(chalk.green(' | '))}${chalk.green(' : 切换对话模式（默认）')}\n
 ${chalk.green('9.')} ${cliModeKeywords.join(chalk.green(' | '))}${chalk.green(' : 切换命令行模式')}\n
-${chalk.green('10.')} \\img ${chalk.green('<')}图片描述${chalk.green('>')} ${chalk.green(': 生成图片')}\n
+${chalk.green('10.')} ${streamEnableKeywords.join(chalk.green(' | '))}${chalk.green(' : 开启流式输出')}\n
+${chalk.green('11.')} ${streamStopKeywords.join(chalk.green(' | '))}${chalk.green(' : 关闭流式输出')}\n
+${chalk.green('12.')} \\img ${chalk.green('<')}图片描述${chalk.green('>')} ${chalk.green(': 生成图片')}\n
 ${chalk.green('------------------------------------------------------\n')}
 \n`;
 
