@@ -63,6 +63,13 @@ let server = null;
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
+  terminal: true,
+  historySize: 150,
+  removeHistoryDuplicates: true,
+});
+
+rl.on('history', (history) => {
+  if (rl.preventHistory) history.shift();
 });
 
 // 初始化控制台loading
@@ -171,7 +178,7 @@ function chatCompletionGenerator(_mode, messages, stream = false) {
 /**
  * @description 处理接口流式数据
  * @param {import('stream').Stream} stream
- * @param {Function} onOutput 输出回调
+ * @param {Function} [onOutput] 输出回调
  * @return {Promise<void>}
  */
 function streamPromise(stream, onOutput) {
@@ -565,11 +572,13 @@ async function chat() {
 
   // 接口出参
   askQuestion(chalk.yellowBright('\n[ChatGPT] 小助手：'));
+  rl.preventHistory = true; // 阻止控制台记录历史数据
   const { data, err } = await streamPromise(stream, (m) => {
     // 打字机效果
+    // 打字机的输入不计入控制台输入历史记录
     rl.write(m);
-    // TODO: 打字机的输入不计入控制台输入历史记录
   });
+  rl.preventHistory = false; // 恢复控制台记录历史数据
 
   if (err) {
     console.log(`\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${err.message}\n`);
