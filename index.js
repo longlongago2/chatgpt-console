@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import express from 'express';
 import favicon from 'serve-favicon';
 import bodyParser from 'body-parser';
+import open from 'open';
 import { Configuration, OpenAIApi, ChatCompletionRequestMessageRoleEnum } from 'openai';
 import {
   getSystemDownloadFolderPath,
@@ -132,7 +133,7 @@ function imageGenerator(imgDesc) {
     .createImage({
       prompt: imgDesc,
       response_format: 'url',
-      n: 3,
+      n: 1,
     })
     .then((res) => {
       const { data } = res.data;
@@ -567,11 +568,14 @@ async function chat() {
     const imgDesc = answer.replace('\\img', '').trim();
     const { data, err } = await imageGenerator(imgDesc);
     spinner.stop();
-    if (data) {
-      const imagePaths = data.map((v, i) => `[${i + 1}] ${v.url}`).join(' \n');
-      console.log(
-        `\n${chalk.bgGreen('ChatGPT 生成图片成功')} => 生成 ${data.length} 张图片：\n${imagePaths}\n`,
-      );
+    if (Array.isArray(data) && data.length > 0) {
+      console.log(`\n${chalk.bgGreen('ChatGPT 图片生成成功')}\n`);
+      data.forEach((img) => {
+        const { url } = img;
+        console.log(`${chalk.bgYellow(' 图片地址 ')}：${url}\n`);
+        // 使用浏览器打开图片
+        open(url);
+      });
     } else {
       console.log(`\n${chalk.bgRed('ChatGPT 生成图片失败')} => ${err.type || 'Error'}: ${err.message}\n`);
     }
