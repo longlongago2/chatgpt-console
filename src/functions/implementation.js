@@ -4,6 +4,13 @@ import { get_current_weather } from './definition.js';
 const amapKey = process.env.AMAP_KEY;
 
 export default {
+  /**
+   * @description 获取高德地图天气 https://lbs.amap.com/api/webservice/guide/api/weatherinfo
+   * @param {object} { location, extensions }
+   * @param {string} location
+   * @param {'base'|'all'} extensions
+   * @return {Promise<void>}
+   */
   async [get_current_weather.name]({ location, extensions }) {
     if (!location) {
       throw new Error('Location not provided');

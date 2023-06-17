@@ -14,6 +14,8 @@
 
 - 📷 Support image generator
 
+- ⛅ Support weather forecast
+
 
 ## Usage
 
@@ -22,11 +24,14 @@
 ```yml
 # Create .env.local file
 
-# Your chatGPT API key or the third-party key
-OPENAI_API_KEY="your api key"
+# [Required] ChatGPT API key
+OPENAI_API_KEY="xxx"
 
-# [optional] Your ChatGPT Identifier for this organization sometimes used in API requests
-ORGANIZATION_ID="your organization id"
+# [Optional] ChatGPT Identifier for this organization sometimes used in API requests
+# ORGANIZATION_ID="org-xxx"
+
+# [Required] Amap API key, used to query weather forecast, key application url: https://console.amap.com/dev/key/app
+AMAP_KEY="xxx"
 ```
 
 ### 2. Enter the project root directory and install dependencies
@@ -104,12 +109,16 @@ _ChatGPT 生成对话失败 => insufficient_quota: You exceeded your current quo
 
 这种情况是您的账户需要付费，chatGPT该氪你金了
 
-### 4. Error: Too Many Requests(429)
+### 5. Error: Too Many Requests(429)
 
 接口余额不足，需要绑定信用卡
 
-### 5. 如何配置第三方的接口和key
+### 6. 如何配置第三方的接口和key
 
 key的配置方式不变，支持第三方接口配置，例如：在 .env 文件中配置 CHATGPT_REGISTRY="https://api.openai-sb.com/v1"
+
+### 7. 如何查询天气
+
+对话：今天南京天气如何？/ 南京最近几天的天气预报 / 明天天气适合出门吗？
 
 
