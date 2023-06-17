@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -18,13 +17,13 @@ export function getSystemDownloadFolderPath() {
 export function getAddress() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
-  for (const name of Object.keys(interfaces)) {
-    for (const interfaceInfo of interfaces[name]) {
-      if (interfaceInfo.family === 'IPv4' && !interfaceInfo.internal) {
-        addresses.push(interfaceInfo.address);
+  Object.entries(interfaces).forEach(([, interfaceInfo]) => {
+    interfaceInfo.forEach((item) => {
+      if (item.family === 'IPv4' && !item.internal) {
+        addresses.push(item.address);
       }
-    }
-  }
+    });
+  });
   return addresses;
 }
 

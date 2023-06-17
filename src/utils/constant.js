@@ -38,9 +38,9 @@ export const chatModeKeywords = ['对话模式', 'chat mode'];
 
 export const cliModeKeywords = ['命令行模式', 'cli mode'];
 
-export const streamEnableKeywords = ['开启流式输出', 'stream enable'];
+export const streamEnableKeywords = ['开启流式输出', 'stream on'];
 
-export const streamStopKeywords = ['关闭流式输出', 'stream stop'];
+export const streamStopKeywords = ['关闭流式输出', 'stream off'];
 
 // 指令罗列输出内容
 export const commandsOutput = `\n
@@ -75,25 +75,3 @@ export const cliDefinition = {
   4. If the user asks the same question, it means that the user is not satisfied with the previous answer, please try to use new data to answer.
   `,
 };
-
-// 【指导聊天模型】函数定义
-export const functionsDefinition = [
-  {
-    name: 'get_current_weather',
-    description: 'Get the current weather in a given location',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: {
-          type: 'string',
-          description: 'The city and state, e.g. San Francisco, CA',
-        },
-        unit: {
-          type: 'string',
-          enum: ['celsius', 'fahrenheit'],
-        },
-      },
-      required: ['location'],
-    },
-  },
-];
