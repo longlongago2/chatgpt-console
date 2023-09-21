@@ -46,10 +46,11 @@ if (!process.env.OPENAI_API_KEY) {
   dotenvConfig(dotenvFiles);
 }
 
-const model = process.env.CHATGPT_MODEL;
+const model = process.env.CHATGPT_MODEL || 'gpt-3.5-turbo-16k';
 
 // 初始化模式
-let mode = 'chat mode'; // chat mode | cli mode
+/** @type {'chat mode' | 'cli mode'} */
+let mode = 'chat mode';
 
 // 初始化流式输出
 let streamOutput = true;
@@ -79,6 +80,7 @@ const rl = readline.createInterface({
 });
 
 rl.on('history', (history) => {
+  // @ts-ignore
   if (rl.preventHistory) history.shift();
 });
 
@@ -129,8 +131,8 @@ function askQuestion(qes) {
 
 /**
  * @description 生成图片函数
- * @param {*} imgDesc
- * @return {Promise<{data: string[], err: Error}>}
+ * @param {string} imgDesc
+ * @returns {Promise<{data?: any[], err?: any}>}
  */
 function imageGenerator(imgDesc) {
   return openai
@@ -156,7 +158,7 @@ function imageGenerator(imgDesc) {
  * @description 对话生成函数
  * @param {'cli mode' | 'chat mode'} _mode
  * @param {any[]} messages
- * @return {Promise<{data: any[], err: Error}>}
+ * @returns {Promise<{data?: any, err?: any}>}
  */
 function chatCompletionGenerator(_mode, messages, stream = false) {
   let function_call = 'auto'; // 智能决定是否调用函数
@@ -166,7 +168,9 @@ function chatCompletionGenerator(_mode, messages, stream = false) {
     // 命令行模式下，创造性程度最低，需要严格按照system限定输出
     temperature = 0;
     // 命令行模式下，禁止函数调用
+    // @ts-ignore
     function_call = undefined;
+    // @ts-ignore
     functions = undefined;
   }
   return openai
@@ -205,7 +209,6 @@ function chatCompletionGenerator(_mode, messages, stream = false) {
  * @description 处理接口流式数据
  * @param {import('stream').Stream} stream
  * @param {(text: string) => void} [onOutput] 输出回调
- * @return {Promise<void>}
  */
 function streamPromise(stream, onOutput) {
   const promise = new Promise((resolve, reject) => {
@@ -259,7 +262,6 @@ function streamPromise(stream, onOutput) {
  * @export
  * @param {string} port
  * @param {{onRequest: (req: import('express').Request) => void, onError: (err: Error) => void}}
- * @return {Promise<{data: import('http').Server, err: Error}>}
  */
 export function serverGenerator(port, { onRequest, onError }) {
   const serverPromise = new Promise((resolve, reject) => {
@@ -322,7 +324,6 @@ export function serverGenerator(port, { onRequest, onError }) {
  * @description 命令行生成函数
  * @export
  * @param {string} command
- * @return {Promise<{data: string, err: Error}>}
  */
 export function commandGenerator(command) {
   const commandPromise = new Promise((resolve, reject) => {
@@ -335,7 +336,7 @@ export function commandGenerator(command) {
       });
       console.log(''); // 空一行
       cmd.on('exit', () => {
-        resolve();
+        resolve('exit');
       });
       cmd.on('error', (err) => {
         reject(err);
@@ -352,12 +353,12 @@ export function commandGenerator(command) {
  * @description 执行命令函数
  * @export
  * @param {string} command
- * @return {*}
  */
 export async function execCommand(command) {
   const answer = await askQuestion(` -- ${chalk.red('是否执行？')} (Y/N/E)：`);
   const v = answer.trim().toLowerCase();
   if (v === 'y') {
+    // @ts-ignore
     const { err } = await commandGenerator(command);
     if (err) {
       console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
@@ -377,6 +378,7 @@ export async function execCommand(command) {
       rl.write(command);
     }, 0);
     const newCommand = await askQuestion(`\n -- ${chalk.blue('编辑命令')}：`);
+    // @ts-ignore
     const { err } = await commandGenerator(newCommand);
     if (err) {
       console.log(`${chalk.bgRed('\n命令执行失败')} => ${err.message}\n`);
@@ -519,7 +521,7 @@ export async function chat(mute = false) {
 
     if (serveKeywords.includes(answer)) {
       if (!server) {
-        const inputPort = (await askQuestion(chalk.greenBright('\n请输入服务端口号(3000)：'))) || 3000;
+        const inputPort = (await askQuestion(chalk.greenBright('\n请输入服务端口号(3000)：'))) || '3000';
         const res = await serverGenerator(inputPort, {
           onRequest(req) {
             console.log(chalk.bgYellow('\n\n接口服务日志\n'));
@@ -537,12 +539,13 @@ export async function chat(mute = false) {
             chat();
           },
         });
-        if (res.err) {
+        if ('err' in res && res.err) {
           console.log(chalk.bgRed('\n ChatGPT 代理服务启动失败 \n'));
           console.log(`${res.err.message}\n`);
           chat();
           return;
         }
+        // @ts-ignore
         server = res.data;
       }
       const ip = getAddress()[0];
@@ -610,6 +613,7 @@ export async function chat(mute = false) {
   // ChatGPT Request messages: 上下文消息体
   let messages = [];
   if (mode === 'cli mode') {
+    // @ts-ignore
     if (input) cliLog.push(input);
     messages = cliLog;
   }
@@ -634,7 +638,9 @@ export async function chat(mute = false) {
     }
     // 处理流式输出
     askQuestion(`\n${chalk.yellowBright('[ChatGPT] 小助手：')}`);
+    // @ts-ignore
     rl.preventHistory = true; // 阻止控制台记录历史数据
+    // @ts-ignore
     const { data, err: parseErr } = await streamPromise(stream, (m) => {
       // 打印消息不计入终端历史数据
       if (m === '[END]') {
@@ -643,6 +649,7 @@ export async function chat(mute = false) {
       }
       rl.write(m);
     });
+    // @ts-ignore
     rl.preventHistory = false; // 恢复控制台记录历史数据
     if (parseErr) {
       console.log(`\n${chalk.bgRed('ChatGPT 对话解析失败')} => ${parseErr.message}\n`);
@@ -683,6 +690,7 @@ export async function chat(mute = false) {
         chatLog.push(functionCall);
         // 开始执行函数：获取返回值，然后将返回值作为消息添加到上下文重新生成对话
         spinner.start();
+        // @ts-ignore
         const { data: result, err: funcErr } = await functionsImplemention[function_call.name](
           JSON.parse(function_call.arguments),
         )

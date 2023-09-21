@@ -18,11 +18,13 @@ export function getAddress() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
   Object.entries(interfaces).forEach(([, interfaceInfo]) => {
-    interfaceInfo.forEach((item) => {
-      if (item.family === 'IPv4' && !item.internal) {
-        addresses.push(item.address);
-      }
-    });
+    if (interfaceInfo) {
+      interfaceInfo.forEach((item) => {
+        if (item.family === 'IPv4' && !item.internal) {
+          addresses.push(item.address);
+        }
+      });
+    }
   });
   return addresses;
 }
@@ -53,7 +55,7 @@ export function isJSON(str) {
 
 export function isJSONFile(filePath) {
   try {
-    JSON.parse(fs.readFileSync(filePath));
+    JSON.parse(fs.readFileSync(filePath).toString());
     return true;
   } catch (error) {
     return false;
@@ -77,8 +79,7 @@ export function getPrefix(mode) {
 /**
  * @description: 提取命令行
  * @export
- * @param {string} str e.g. ">tree"
- * @return {boolean}
+ * @param {string} text e.g. ">tree"
  */
 export function extractCommandLine(text) {
   const regex = />.*$/m;

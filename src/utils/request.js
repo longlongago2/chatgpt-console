@@ -15,6 +15,7 @@ if (ORGANIZATION_ID) headers['OpenAI-Organization'] = ORGANIZATION_ID;
 
 export const $axios = axios.create({
   timeout: 0, // 永不超时
+  // @ts-ignore
   headers,
 });
 
